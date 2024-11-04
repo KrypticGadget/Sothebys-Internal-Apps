@@ -124,6 +124,17 @@ class DataProcessor:
                 if component not in df.columns:
                     df[component] = ''
             
+            # Validation function for addresses
+            def validate_address(row):
+                """Validate that no common abbreviations remain in the address."""
+                common_abbrevs = ['St', 'Ave', 'Rd', 'Blvd', 'Ln', 'Dr', 'Ct', 'Pl', 'Ft']
+                address = row['Address']
+                remaining_abbrevs = [abbr for abbr in common_abbrevs if f" {abbr}" in address]
+                if remaining_abbrevs:
+                    self.logger.warning(f"Found unexpanded abbreviations in address: {address}")
+                    return False
+                return True
+            
             # Update DataFrame with standardized components
             for idx, row in df.iterrows():
                 original_address = row['Full Address']
@@ -154,6 +165,14 @@ class DataProcessor:
                         full_address = f"{df.at[idx, 'Address']}, {df.at[idx, 'City']}, {df.at[idx, 'State']} {df.at[idx, 'Zipcode']}"
                         df.at[idx, 'Full Address'] = full_address
             
+            # Check for unexpanded abbreviations
+            unexpanded_addresses = df[~df.apply(validate_address, axis=1)]
+            if not unexpanded_addresses.empty:
+                if status_callback:
+                    status_callback("\nWarning: Found addresses with unexpanded abbreviations:")
+                    for _, row in unexpanded_addresses.iterrows():
+                        status_callback(f"- {row['Full Address']}")
+            
             # Ensure consistent column order
             columns = ['Full Address'] + self.address_components + [
                 col for col in df.columns 
@@ -174,6 +193,10 @@ class DataProcessor:
                     percentage = (count / len(df)) * 100
                     stats_message += f"\n• {component}: {count} ({percentage:.1f}%)"
                 status_callback(stats_message)
+                
+                # Add validation statistics
+                if not unexpanded_addresses.empty:
+                    stats_message += f"\n\n⚠️ Found {len(unexpanded_addresses)} addresses with unexpanded abbreviations"
             
             return df
             
@@ -197,6 +220,8 @@ class DataProcessor:
             r'\bHwy\b': 'Highway',
             r'\bPkwy\b': 'Parkway',
             r'\bSq\b': 'Square',
+            r'\bFt\b': 'Fort',  # Added Fort abbreviation
+            # Directionals
             r'\bN\b': 'North',
             r'\bS\b': 'South',
             r'\bE\b': 'East',
@@ -207,8 +232,22 @@ class DataProcessor:
             r'\bSW\b': 'Southwest'
         }
         
+        # First pass: expand standard abbreviations
         for abbr, full in street_abbrev.items():
             address = re.sub(abbr, full, address)
+        
+        # Second pass: catch remaining specific cases
+        specific_cases = {
+            r'Fort Greene Pl\b': 'Fort Greene Place',
+            r'Ft Greene Pl\b': 'Fort Greene Place',
+            r'Ft. Greene Pl\b': 'Fort Greene Place',
+            r'Fort Greene Pl.\b': 'Fort Greene Place',
+            # Add more specific cases as needed
+        }
+        
+        for case, replacement in specific_cases.items():
+            address = re.sub(case, replacement, address)
+        
         return address
 
     def _expand_state_abbreviation(self, state):
