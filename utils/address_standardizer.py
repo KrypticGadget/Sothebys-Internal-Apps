@@ -132,7 +132,7 @@ class AddressStandardizer:
         return address
 
     def parse_normalized_address(self, full_address):
-        """Parse address into components with multiple parsing strategies."""
+        """Parse address into components with enhanced validation."""
         try:
             if not full_address:
                 return None
@@ -145,28 +145,60 @@ class AddressStandardizer:
             # Clean the address
             cleaned_address = self._clean_address(full_address)
             
-            # Try regex patterns first
-            components = self._try_regex_patterns(cleaned_address)
-            if components:
-                self._cache_result(cache_key, cleaned_address, components)
-                return components
+            # Try multiple parsing strategies in order
+            components = (
+                self._try_regex_patterns(cleaned_address) or
+                self._geocode_address(cleaned_address) or
+                self._manual_parse(cleaned_address)
+            )
             
-            # Try geocoding
-            components = self._geocode_address(cleaned_address)
             if components:
+                # Ensure no abbreviations in components
+                components = self._expand_abbreviations(components)
                 self._cache_result(cache_key, cleaned_address, components)
-                return components
-            
-            # Final fallback to manual parsing
-            components = self._manual_parse(cleaned_address)
-            if components:
-                self._cache_result(cache_key, cleaned_address, components)
-            
+                
             return components
             
         except Exception as e:
             self.logger.error(f"Error parsing address: {str(e)}")
             return None
+
+    def _expand_abbreviations(self, components):
+        """Expand common address abbreviations."""
+        street_abbrev = {
+            'St': 'Street', 'Ave': 'Avenue', 'Rd': 'Road', 'Blvd': 'Boulevard',
+            'Ln': 'Lane', 'Dr': 'Drive', 'Ct': 'Court', 'Pl': 'Place',
+            'Ter': 'Terrace', 'Cir': 'Circle', 'Hwy': 'Highway'
+        }
+        
+        direction_abbrev = {
+            'N': 'North', 'S': 'South', 'E': 'East', 'W': 'West',
+            'NE': 'Northeast', 'NW': 'Northwest', 'SE': 'Southeast', 'SW': 'Southwest'
+        }
+        
+        if components:
+            # Expand street abbreviations
+            address = components['Address']
+            for abbr, full in street_abbrev.items():
+                pattern = fr'\b{abbr}\b'
+                address = re.sub(pattern, full, address)
+            
+            # Expand directional abbreviations
+            for abbr, full in direction_abbrev.items():
+                pattern = fr'\b{abbr}\b'
+                address = re.sub(pattern, full, address)
+            
+            components['Address'] = address
+            
+            # Ensure state is not abbreviated
+            state_mapping = {
+                'NY': 'New York', 'NJ': 'New Jersey', 'CT': 'Connecticut'
+                # Add more states as needed
+            }
+            if components['State'] in state_mapping:
+                components['State'] = state_mapping[components['State']]
+        
+        return components
 
     def _try_regex_patterns(self, address):
         """Try multiple regex patterns to parse address."""

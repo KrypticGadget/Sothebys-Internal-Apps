@@ -1,4 +1,5 @@
 # utils/data_processor.py
+import re
 import pandas as pd
 from datetime import datetime
 import logging
@@ -130,9 +131,28 @@ class DataProcessor:
                     result = standardized_results[original_address]
                     if result.get('components'):
                         components = result['components']
-                        for field, value in components.items():
-                            df.at[idx, field] = value
-                        df.at[idx, 'Full Address'] = result['full_address']
+                        
+                        # Update individual components with expanded forms
+                        if components.get('Address'):
+                            # Expand street abbreviations
+                            address = components['Address']
+                            address = self._expand_street_abbreviations(address)
+                            df.at[idx, 'Address'] = address
+                        
+                        if components.get('City'):
+                            df.at[idx, 'City'] = components['City']
+                        
+                        if components.get('State'):
+                            # Expand state abbreviations
+                            state = self._expand_state_abbreviation(components['State'])
+                            df.at[idx, 'State'] = state
+                        
+                        if components.get('Zipcode'):
+                            df.at[idx, 'Zipcode'] = components['Zipcode']
+                        
+                        # Update full address with expanded components
+                        full_address = f"{df.at[idx, 'Address']}, {df.at[idx, 'City']}, {df.at[idx, 'State']} {df.at[idx, 'Zipcode']}"
+                        df.at[idx, 'Full Address'] = full_address
             
             # Ensure consistent column order
             columns = ['Full Address'] + self.address_components + [
@@ -160,6 +180,50 @@ class DataProcessor:
         except Exception as e:
             self.logger.error(f"Error in standardize_addresses: {str(e)}")
             return df
+
+    def _expand_street_abbreviations(self, address):
+        """Expand common street abbreviations."""
+        street_abbrev = {
+            r'\bSt\b': 'Street',
+            r'\bAve\b': 'Avenue',
+            r'\bRd\b': 'Road',
+            r'\bBlvd\b': 'Boulevard',
+            r'\bLn\b': 'Lane',
+            r'\bDr\b': 'Drive',
+            r'\bCt\b': 'Court',
+            r'\bPl\b': 'Place',
+            r'\bTer\b': 'Terrace',
+            r'\bCir\b': 'Circle',
+            r'\bHwy\b': 'Highway',
+            r'\bPkwy\b': 'Parkway',
+            r'\bSq\b': 'Square',
+            r'\bN\b': 'North',
+            r'\bS\b': 'South',
+            r'\bE\b': 'East',
+            r'\bW\b': 'West',
+            r'\bNE\b': 'Northeast',
+            r'\bNW\b': 'Northwest',
+            r'\bSE\b': 'Southeast',
+            r'\bSW\b': 'Southwest'
+        }
+        
+        for abbr, full in street_abbrev.items():
+            address = re.sub(abbr, full, address)
+        return address
+
+    def _expand_state_abbreviation(self, state):
+        """Expand state abbreviations to full names."""
+        state_mapping = {
+            'NY': 'New York',
+            'NJ': 'New Jersey',
+            'CT': 'Connecticut',
+            'PA': 'Pennsylvania',
+            'MA': 'Massachusetts',
+            'FL': 'Florida',
+            'CA': 'California',
+            # Add more states as needed
+        }
+        return state_mapping.get(state, state)
 
     def create_full_addresses(self, df):
         """Create full addresses with enhanced component handling."""
