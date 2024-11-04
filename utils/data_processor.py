@@ -8,43 +8,33 @@ from utils.address_standardizer import AddressStandardizer
 
 class DataProcessor:
     def __init__(self, valid_property_classes):
-        """
-        Initialize the DataProcessor with valid property classes.
-        
-        Property Class Codes:
-        - CD: Residential Condominium
-        - B9: Mixed Residential & Commercial Buildings
-        - B2: Office Buildings
-        - B3: Industrial & Manufacturing
-        - C0/CO: Commercial Condominium (both formats accepted)
-        - B1: Hotels & Apartments
-        - C1: Walk-up Apartments
-        - A9: Luxury / High-End Residential
-        - C2: Elevator Apartments
-        """
+        """Initialize DataProcessor with enhanced address handling."""
         self.valid_property_classes = valid_property_classes
         self.address_standardizer = AddressStandardizer()
         self.logger = logging.getLogger(__name__)
         
-        # Property class descriptions for user feedback
+        # Property class descriptions
         self.property_class_descriptions = {
             "CD": "Residential Condominium",
             "B9": "Mixed Residential & Commercial",
             "B2": "Office Buildings",
             "B3": "Industrial & Manufacturing",
             "C0": "Commercial Condominium",
-            "CO": "Commercial Condominium",  # Alternative format
+            "CO": "Commercial Condominium",
             "B1": "Hotels & Apartments",
             "C1": "Walk-up Apartments",
             "A9": "Luxury Residential",
             "C2": "Elevator Apartments"
         }
         
-        # Mapping for standardizing property class formats
+        # Property class standardization mapping
         self.property_class_standardization = {
-            "CO": "C0",  # Map CO to C0 format
-            "C0": "C0",  # Keep C0 as is
+            "CO": "C0",
+            "C0": "C0",
         }
+        
+        # Address component columns
+        self.address_components = ['Address', 'City', 'State', 'Zipcode']
 
     def standardize_property_class(self, property_class):
         """Standardize property class format."""
@@ -53,7 +43,7 @@ class DataProcessor:
         return self.property_class_standardization.get(property_class, property_class)
 
     def load_data(self, file_path):
-        """Load data with optimized settings."""
+        """Load data with enhanced type handling."""
         try:
             return pd.read_excel(
                 file_path,
@@ -63,7 +53,8 @@ class DataProcessor:
                     'Address': str,
                     'City': str,
                     'State': str,
-                    'Property class': str
+                    'Property class': str,
+                    'Full Address': str
                 }
             )
         except Exception as e:
@@ -71,33 +62,20 @@ class DataProcessor:
             raise
 
     def analyze_property_classes(self, df):
-        """
-        Analyze property classes in the dataset and provide detailed feedback.
-        
-        Returns:
-            tuple: (filtered_df, stats_dict) where stats_dict contains analysis results
-        """
+        """Analyze property classes with enhanced statistics."""
         try:
-            # First standardize the property classes
             df = df.copy()
             df["Property class"] = df["Property class"].apply(self.standardize_property_class)
             
-            # Count occurrences of each property class
             class_counts = df["Property class"].value_counts()
-            
-            # Separate valid and invalid classes
             valid_classes = {cls: count for cls, count in class_counts.items() 
-                            if cls in self.valid_property_classes}
+                           if cls in self.valid_property_classes}
             invalid_classes = {cls: count for cls, count in class_counts.items() 
                              if cls not in self.valid_property_classes}
             
-            # Filter the dataframe
             filtered_df = df[df["Property class"].isin(self.valid_property_classes)]
-            
-            # Calculate total CO/C0 records
             co_count = len(df[df["Property class"].isin(["CO", "C0"])])
             
-            # Create statistics dictionary
             stats = {
                 "total_records": len(df),
                 "valid_records": len(filtered_df),
@@ -110,9 +88,7 @@ class DataProcessor:
                     }
                     for cls, count in valid_classes.items()
                 },
-                "invalid_classes": {
-                    cls: count for cls, count in invalid_classes.items()
-                },
+                "invalid_classes": invalid_classes,
                 "co_records": co_count
             }
             
@@ -120,6 +96,97 @@ class DataProcessor:
             
         except Exception as e:
             self.logger.error(f"Error analyzing property classes: {str(e)}")
+            raise
+
+    def standardize_addresses(self, df, status_callback=None):
+        """Enhanced address standardization with component splitting."""
+        try:
+            if status_callback:
+                status_callback("Processing addresses...")
+            
+            # Create or update full addresses
+            if 'Full Address' not in df.columns:
+                df['Full Address'] = self.create_full_addresses(df)
+            
+            # Get unique addresses
+            unique_addresses = df['Full Address'].unique()
+            total_addresses = len(unique_addresses)
+            
+            if status_callback:
+                status_callback(f"Standardizing {total_addresses} unique addresses...")
+            
+            # Process addresses in batches
+            standardized_results = self.address_standardizer.standardize_batch(unique_addresses)
+            
+            # Initialize address component columns
+            for component in self.address_components:
+                if component not in df.columns:
+                    df[component] = ''
+            
+            # Update DataFrame with standardized components
+            for idx, row in df.iterrows():
+                original_address = row['Full Address']
+                if original_address in standardized_results:
+                    result = standardized_results[original_address]
+                    if result.get('components'):
+                        components = result['components']
+                        for field, value in components.items():
+                            df.at[idx, field] = value
+                        df.at[idx, 'Full Address'] = result['full_address']
+            
+            # Ensure consistent column order
+            columns = ['Full Address'] + self.address_components + [
+                col for col in df.columns 
+                if col not in ['Full Address'] + self.address_components
+            ]
+            df = df[columns]
+            
+            if status_callback:
+                status_callback("Address standardization complete!")
+                
+                # Add component statistics
+                filled_components = {
+                    component: (df[component].notna() & (df[component] != '')).sum()
+                    for component in self.address_components
+                }
+                stats_message = "\nAddress Component Statistics:"
+                for component, count in filled_components.items():
+                    percentage = (count / len(df)) * 100
+                    stats_message += f"\n• {component}: {count} ({percentage:.1f}%)"
+                status_callback(stats_message)
+            
+            return df
+            
+        except Exception as e:
+            self.logger.error(f"Error in standardize_addresses: {str(e)}")
+            return df
+
+    def create_full_addresses(self, df):
+        """Create full addresses with enhanced component handling."""
+        try:
+            # Ensure all components are strings
+            for col in self.address_components:
+                if col in df.columns:
+                    df[col] = df[col].fillna('').astype(str).str.strip()
+            
+            # Combine components with smart handling
+            def combine_components(row):
+                components = []
+                if row.get('Address'):
+                    components.append(row['Address'])
+                if row.get('City'):
+                    components.append(row['City'])
+                if row.get('State'):
+                    state_zip = row['State']
+                    if row.get('Zipcode'):
+                        state_zip += f" {row['Zipcode']}"
+                    components.append(state_zip)
+                return ', '.join(filter(None, components))
+            
+            return df.apply(combine_components, axis=1)
+            
+        except Exception as e:
+            self.logger.error(f"Error creating full addresses: {str(e)}")
             raise
 
     def filter_data(self, df, status_callback=None):
@@ -131,36 +198,7 @@ class DataProcessor:
             filtered_df, stats = self.analyze_property_classes(df)
             
             if status_callback:
-                # Create detailed status message
-                message = f"""
-                📊 Property Class Analysis:
-                Total Records: {stats['total_records']}
-                Valid Records: {stats['valid_records']} ({(stats['valid_records']/stats['total_records']*100):.1f}%)
-                Filtered Out: {stats['filtered_out']} ({(stats['filtered_out']/stats['total_records']*100):.1f}%)
-                
-                ℹ️ Note: Both 'C0' and 'CO' are treated as Commercial Condominium class
-                
-                ✅ Valid Property Classes:
-                """
-                
-                # Add details for each valid class
-                for cls, info in stats['valid_classes'].items():
-                    description = info['description']
-                    count = info['count']
-                    percentage = info['percentage']
-                    
-                    # Special handling for C0/CO display
-                    if cls in ["C0", "CO"]:
-                        message += f"\n• Commercial Condominium (C0/CO): {count} ({percentage:.1f}%)"
-                    else:
-                        message += f"\n• {cls} - {description}: {count} ({percentage:.1f}%)"
-                
-                if stats['invalid_classes']:
-                    message += "\n\n❌ Filtered Out Classes:"
-                    for cls, count in stats['invalid_classes'].items():
-                        message += f"\n• {cls}: {count}"
-                
-                status_callback(message)
+                self._create_filter_status_message(stats, status_callback)
             
             # Drop unnecessary columns
             filtered_df = filtered_df.drop(columns=["Block & Lot"], errors="ignore")
@@ -171,96 +209,62 @@ class DataProcessor:
             self.logger.error(f"Error in filter_data: {str(e)}")
             raise
 
-    def create_full_addresses(self, df):
-        """Efficiently create full addresses for all rows."""
-        try:
-            # Ensure all address components are strings and handle NaN
-            components = ['Address', 'City', 'State', 'Zipcode']
-            for col in components:
-                if col in df.columns:
-                    df[col] = df[col].fillna('').astype(str).str.strip()
-
-            # Vectorized operations for combining address components
-            full_addresses = (
-                df['Address'].str.strip() + ', ' +
-                df['City'].str.strip() + ', ' +
-                df['State'].str.strip() + ' ' +
-                df['Zipcode'].str.strip()
-            )
-            
-            return full_addresses.str.strip(', ')
-            
-        except Exception as e:
-            self.logger.error(f"Error creating full addresses: {str(e)}")
-            raise
-
-    def standardize_addresses(self, df, status_callback=None):
+    def _create_filter_status_message(self, stats, status_callback):
+        """Create detailed filter status message."""
+        message = f"""
+        📊 Property Class Analysis:
+        Total Records: {stats['total_records']}
+        Valid Records: {stats['valid_records']} ({(stats['valid_records']/stats['total_records']*100):.1f}%)
+        Filtered Out: {stats['filtered_out']} ({(stats['filtered_out']/stats['total_records']*100):.1f}%)
+        
+        ℹ️ Note: Both 'C0' and 'CO' are treated as Commercial Condominium class
+        
+        ✅ Valid Property Classes:
         """
-        Batch process address standardization with progress updates and component handling.
-        """
-        try:
-            if status_callback:
-                status_callback("Creating full addresses...")
+        
+        for cls, info in stats['valid_classes'].items():
+            description = info['description']
+            count = info['count']
+            percentage = info['percentage']
             
-            # First create all full addresses
-            df['Full Address'] = self.create_full_addresses(df)
-            
-            # Get unique addresses to avoid processing duplicates
-            unique_addresses = df['Full Address'].unique()
-            
-            if status_callback:
-                status_callback(f"Standardizing {len(unique_addresses)} unique addresses...")
-            
-            # Batch process all unique addresses
-            standardized_results = self.address_standardizer.standardize_batch(unique_addresses)
-            
-            # Create a mapping for full addresses
-            address_mapping = {
-                addr: result['full_address']
-                for addr, result in standardized_results.items()
-            }
-            
-            # Update the DataFrame with standardized full addresses
-            df['Full Address'] = df['Full Address'].map(address_mapping)
-            
-            if status_callback:
-                status_callback("Updating address components...")
-            
-            # Update individual components
-            for idx, row in df.iterrows():
-                original_address = row['Full Address']
-                if original_address in standardized_results:
-                    result = standardized_results[original_address]
-                    if result.get('components'):
-                        components = result['components']
-                        for field, value in components.items():
-                            if field in df.columns:
-                                df.at[idx, field] = value
-            
-            return df
-            
-        except Exception as e:
-            self.logger.error(f"Error in standardize_addresses: {str(e)}")
-            return df
+            if cls in ["C0", "CO"]:
+                message += f"\n• Commercial Condominium (C0/CO): {count} ({percentage:.1f}%)"
+            else:
+                message += f"\n• {cls} - {description}: {count} ({percentage:.1f}%)"
+        
+        if stats['invalid_classes']:
+            message += "\n\n❌ Filtered Out Classes:"
+            for cls, count in stats['invalid_classes'].items():
+                message += f"\n• {cls}: {count}"
+        
+        status_callback(message)
 
     def remove_duplicates(self, df):
-        """Optimized duplicate removal."""
+        """Enhanced duplicate removal with address component consideration."""
         try:
-            # Convert sale date once for all rows
+            # Sort by sale date if available
             if 'Sale date' in df.columns:
                 df['Sale date'] = pd.to_datetime(df['Sale date'], errors='coerce')
                 df = df.sort_values('Sale date', ascending=False)
-
-            return df.drop_duplicates(subset=['Full Address'], keep='first').reset_index(drop=True)
+            
+            # Remove duplicates based on standardized address
+            deduped_df = df.drop_duplicates(
+                subset=['Full Address'],
+                keep='first'
+            ).reset_index(drop=True)
+            
+            # Log duplicate removal statistics
+            removed_count = len(df) - len(deduped_df)
+            self.logger.info(f"Removed {removed_count} duplicate addresses")
+            
+            return deduped_df
             
         except Exception as e:
             self.logger.error(f"Error removing duplicates: {str(e)}")
             return df
 
     def process_file(self, file_path, status_callback=None):
-        """
-        Process file with enhanced property class filtering and status updates.
-        """
+        """Process file with enhanced address handling and validation."""
         try:
             if status_callback:
                 status_callback("Loading data...")
@@ -271,61 +275,46 @@ class DataProcessor:
             if status_callback:
                 status_callback(f"Analyzing {initial_count} records...")
             
+            # Filter and standardize
             filtered_df, filter_stats = self.filter_data(df, status_callback)
-            filtered_count = len(filtered_df)
-            
-            if filtered_count == 0:
-                if status_callback:
-                    status_callback("❌ No valid property classes found in the data.")
+            if len(filtered_df) == 0:
+                status_callback("❌ No valid property classes found.")
                 return None
             
-            if status_callback:
-                status_callback(f"Standardizing {filtered_count} addresses...")
-            
+            # Standardize addresses
             standardized_df = self.standardize_addresses(filtered_df, status_callback)
             
-            if status_callback:
-                status_callback("Removing duplicates...")
-            
+            # Remove duplicates
             deduped_df = self.remove_duplicates(standardized_df)
-            final_count = len(deduped_df)
             
-            # Add processing timestamp and filter statistics
+            # Add metadata
             deduped_df["Processed Date"] = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+            deduped_df['Property Class Description'] = deduped_df['Property class'].map(
+                self.property_class_descriptions
+            )
             
-            # Add property class descriptions
-            deduped_df['Property Class Description'] = deduped_df['Property class'].map(self.property_class_descriptions)
-            
-            # Reorder columns to put important information first
+            # Final column ordering
             columns = [
-                'Full Address', 
-                'Address',
-                'City', 
-                'State',
-                'Zipcode',
-                'Property class', 
-                'Property Class Description'
+                'Full Address', 'Address', 'City', 'State', 'Zipcode',
+                'Property class', 'Property Class Description'
             ] + [
-                col for col in deduped_df.columns if col not in [
+                col for col in deduped_df.columns 
+                if col not in [
                     'Full Address', 'Address', 'City', 'State', 'Zipcode',
                     'Property class', 'Property Class Description'
                 ]
             ]
             deduped_df = deduped_df[columns]
             
+            # Final statistics
             if status_callback:
-                status_callback(f"""
-                ✅ Processing complete!
-                
-                📈 Final Statistics:
-                • Initial records: {initial_count}
-                • Valid property classes: {filtered_count}
-                • Final records after deduplication: {final_count}
-                • Removed duplicates: {filtered_count - final_count}
-                
-                Most common property types in final dataset:
-                {deduped_df['Property class'].value_counts().head(3).to_string()}
-                """)
+                self._create_final_status_message(
+                    initial_count, 
+                    len(filtered_df), 
+                    len(deduped_df), 
+                    deduped_df,
+                    status_callback
+                )
             
             return deduped_df
             
@@ -334,3 +323,28 @@ class DataProcessor:
             if status_callback:
                 status_callback(f"Error: {str(e)}")
             return None
+
+    def _create_final_status_message(self, initial_count, filtered_count, 
+                                   final_count, df, status_callback):
+        """Create detailed final status message."""
+        message = f"""
+        ✅ Processing complete!
+        
+        📈 Final Statistics:
+        • Initial records: {initial_count}
+        • Valid property classes: {filtered_count}
+        • Final records after deduplication: {final_count}
+        • Removed duplicates: {filtered_count - final_count}
+        
+        Most common property types in final dataset:
+        {df['Property class'].value_counts().head(3).to_string()}
+        
+        Address Component Completeness:
+        """
+        
+        for component in self.address_components:
+            filled = (df[component].notna() & (df[component] != '')).sum()
+            percentage = (filled / len(df)) * 100
+            message += f"\n• {component}: {filled}/{len(df)} ({percentage:.1f}%)"
+        
+        status_callback(message)

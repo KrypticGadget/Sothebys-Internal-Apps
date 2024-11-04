@@ -291,7 +291,6 @@ if page == 'Process New Data':
                     """, unsafe_allow_html=True)
                     
 
-
                     # Show the dataframe with all relevant columns
                     display_columns = [
                         "Full Address",
@@ -309,7 +308,24 @@ if page == 'Process New Data':
                         height=400
                     )
 
+                    # Add column descriptions
+                    st.markdown("""
+                        <div style="background-color: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 5px; margin-top: 20px;">
+                            <h4 style="color: #FFFFFF;">Column Descriptions:</h4>
+                            <ul style="color: #FFFFFF;">
+                                <li><strong>Full Address:</strong> Complete standardized address</li>
+                                <li><strong>Address:</strong> Street address component</li>
+                                <li><strong>City:</strong> City/locality component</li>
+                                <li><strong>State:</strong> State/region component</li>
+                                <li><strong>Zipcode:</strong> Postal code component</li>
+                                <li><strong>Property class:</strong> Property classification code</li>
+                                <li><strong>Property Class Description:</strong> Detailed property type description</li>
+                            </ul>
+                        </div>
+                    """, unsafe_allow_html=True)
+
                     st.markdown('</div>', unsafe_allow_html=True)
+
                     
                     # Add download button with clear instructions
                     st.markdown("""
