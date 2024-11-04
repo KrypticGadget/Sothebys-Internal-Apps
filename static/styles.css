@@ -1,0 +1,114 @@
+/* Main app styling and background */
+.stApp {
+    background-color: #002A5C;
+    color: #FFFFFF;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.stApp > header {
+    background-color: transparent;
+}
+
+/* Logo containers */
+.logo-container-login, .logo-container-main {
+    text-align: center;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-radius: 8px;
+}
+
+.logo-container-login {
+    background-color: transparent;
+}
+
+.logo-container-main {
+    background-color: #002A5C;
+}
+
+.logo-container-login img,
+.logo-container-main img {
+    max-width: 200px;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+}
+
+p, span, div {
+    color: inherit;
+}
+
+/* Login specific styling */
+.login-container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding: 2rem;
+    background-color: #FFFFFF;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: #002A5C !important;
+}
+
+/* Login message styling */
+.login-container h3,
+#use-your-sothebys-realty-email-to-login {
+    font-size: 0.9rem;
+    margin: 0 0 1.5rem 0;
+    color: #002A5C !important;
+    text-align: center;
+    font-weight: 500 !important;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Remove box around login message */
+div[data-testid="stForm"] > div:first-child {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.login-container .stTextInput > label {
+    color: #002A5C !important;
+}
+
+/* Form elements */
+.stTextInput>div>div>input {
+    border: 1px solid #002A5C !important;
+    color: #002A5C !important;
+    background-color: #FFFFFF;
+    border-radius: 4px;
+}
+
+.stTextInput>div>div>input:focus {
+    border: 2px solid #002A5C !important;
+    box-shadow: none !important;
+}
+
+.stTextInput > label,
+.stSelectbox > label,
+.stFileUploader > label {
+    color: #FFFFFF !important;
+}
+
+/* Buttons */
+.stButton>button {
+    background-color: #002A5C !important;
+    color: #FFFFFF !important;
+    border: 1px solid #FFFFFF !important;
+    border-radius: 4px !important;
+    padding: 0.5rem 1rem !important;
+    font-weight: 500 !important;
+    width: 100% !important;
+    margin-top: 1rem !important;
+}
+
+.stButton>button:hover {
+    background-color: #003A7C !important;
+}

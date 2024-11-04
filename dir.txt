@@ -1,0 +1,18 @@
+real_estate_validator/
+├── app.py
+├── requirements.txt
+├── vercel.json
+├── .env.example
+├── .gitignore
+├── README.md
+├── assets/
+│   ├── favicon.ico
+│   └── sothebys-logo.png
+├── .streamlit/
+│   └── config.toml
+└── utils/
+    ├── __init__.py
+    ├── address_standardizer.py
+    ├── auth.py
+    ├── data_processor.py
+    └── database.py

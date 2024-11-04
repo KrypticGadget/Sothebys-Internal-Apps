@@ -1,0 +1,13 @@
+[theme]
+primaryColor = "#FFFFFF"
+backgroundColor = "#002A5C"
+secondaryBackgroundColor = "#001A3C"
+textColor = "#FFFFFF"
+font = "sans serif"
+
+[server]
+enableCORS = true  # Changed to true to resolve the warning
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
