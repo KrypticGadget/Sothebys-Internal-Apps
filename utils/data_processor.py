@@ -32,6 +32,7 @@ class DataProcessor:
         self.property_class_standardization = {
             "CO": "C0",
             "C0": "C0",
+            "B1": "B1"
         }
         
         # Address component columns

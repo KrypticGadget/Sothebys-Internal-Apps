@@ -67,7 +67,7 @@ def display_logo(context='main'):
         """, unsafe_allow_html=True)
 
 # Configure valid property classes
-VALID_PROPERTY_CLASSES = ["CD", "B9", "B2", "B3", "CO", "C0" "B1", "C1", "A9", "C2"]
+VALID_PROPERTY_CLASSES = ["CD", "B9", "B2", "B3", "CO", "C0", "B1", "C1", "C3", "A9", "C2"]
 data_processor = DataProcessor(VALID_PROPERTY_CLASSES)
 
 # Authentication check
